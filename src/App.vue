@@ -3,7 +3,6 @@
     <img src="./assets/logo.png">
     <h1>Minds Online Class</h1>
     <h2>Teacher</h2>
-    <button type="button" name="cacel" @click="cancel()">Cancel</button>
     <div class="chat">
       <div class="chat__box">
         <div class="chat__box__video">
@@ -19,7 +18,7 @@
             <span>{{ student.name }}</span>
           </div>
           <div class="chat__users__student__call">
-            <button type="button" name="call" @click="call(student)" :disabled="student.busy">Call</button>
+            <button type="button" name="call" @click="emitCancel(student.id)" v-show="busy">Cancel</button>
           </div>
         </div>
       </div>
@@ -42,19 +41,17 @@ export default {
     return {
       students: [],
       offer: null,
-      answers: {},
+      received: false,
+      answered: false,
+      busy: false,
       pc: null,
       stream: null
     }
   },
   methods: {
-    async call (student) {
+    async answer (id) {
       try {
-        this.pc = new PeerConnection({ iceServers: [{ url: 'stun:stun.services.mozilla.com' }]})
-        this.pc.onaddstream = function (track) {
-          this.$refs['guest'].srcObject = track.stream
-          this.$refs['guest'].play()
-        }
+        this.busy = true
         const media = await navigator.mediaDevices.getUserMedia({
           video: true,
           audio: true
@@ -62,27 +59,96 @@ export default {
         this.stream = media
         this.$refs['you'].srcObject = media
         this.pc.addStream(media)
+        this.makeOffer(id)
       } catch (error) {
-        alert(`Failed to Call ${student.name}!`)
+        alert(`Failed to Answer Student!`)
         console.warn(error)
       }
+    },
+    emitCancel (id) {
+      socket.emit('hangup', id)
+      this.cancel()
     },
     cancel () {
       for (const track of this.stream.getTracks()) {
         track.stop()
       }
-      this.$refs['you'].src = ''
-      console.log(this.pc)
+      this.$refs['guest'].srcObject = null
+      this.$refs['you'].srcObject = null
+      this.busy = false
+      this.received = false
+      this.called = false
+    },
+    async makeOffer (id) {
+      try {
+        if (!this.answered) {
+          const offer = await this.pc.createOffer()
+          this.offer = offer
+          await this.pc.setLocalDescription(new SessionDescription(offer))
+          socket.emit('make_offer', {
+            offer: offer,
+            to: id
+          })
+        }
+      } catch (error) {
+        alert('Failed to Make Offer!')
+        console.warn(error)
+      }
     }
   },
   mounted () {
+    // Setting Peer Connection
+    this.pc = new PeerConnection({ iceServers: [{ url: 'stun:stun.services.mozilla.com' }]})
+    this.pc.onaddstream = (str) => {
+      console.log('Teacher added stream PC')
+      this.$refs['guest'].srcObject = str.stream
+    }
+    // this.pc.onremovestream = () => {
+    //   console.log('Teacher removed stream PC')
+    //   this.$refs['guest'].srcObject = null
+    //   // this.pc.close()
+    // }
+    // Socket Events
     socket.on('connect', () => {
-      console.log(`You're connected!`)
+      console.log(`Teacher connected!`)
       socket.emit('connect_user', { user: 'teacher', name: 'Teacher Test' })
-      socket.on('students_update', students => {
-        console.log(students)
-        this.students = students
-      })
+    })
+    socket.on('students_update', students => {
+      this.students = students
+    })
+    socket.on('offer_made', async data => {
+      try {
+        await this.pc.setRemoteDescription(new SessionDescription(data.offer))
+        const answer = await this.pc.createAnswer()
+        await this.pc.setLocalDescription(new SessionDescription(answer))
+        socket.emit('make_answer', {
+          answer: answer,
+          to: data.socket
+        })
+        this.answer(data.socket)
+      } catch (error) {
+        alert('Failed to Make Answer!')
+        console.warn(error)
+      }
+    })
+    socket.on('answer_made', async data => {
+      try {
+        await this.pc.setRemoteDescription(new SessionDescription(data.answer))
+        if (!this.received) {
+          this.makeOffer(data.socket)
+          this.received = true
+        }
+      } catch (error) {
+        alert('Failed to accept Answer!')
+        console.warn(error)
+      }
+    })
+    socket.on('call_made', id => {
+      if (confirm('Answer call?')) socket.emit('answer_call', id)
+      else socket.emit('reject_call', id)
+    })
+    socket.on('end_call', () => {
+      this.cancel()
     })
   }
 }
@@ -160,6 +226,7 @@ h1, h2 {
       border-radius: 7.5px 25px 25px 7.5px;
       padding: 5px;
       display: flex;
+      height: 29px;
       &:not(:last-child) {
         margin-bottom: 10px;
       }
