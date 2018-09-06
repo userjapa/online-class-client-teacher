@@ -1,9 +1,10 @@
-const app = require('express')()
-const path = require('path')
+const app = require('express')(),
+      serveStatic = require('serve-static'),
+      path = require('path')
 
 const PORT = process.env.PORT?process.env.PORT:'8082'
 
-app.use(serveStatic(path.join(__dirname, 'dist')))
+app.use(serveStatic(__dirname))
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'))
