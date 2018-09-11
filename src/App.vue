@@ -18,7 +18,7 @@
             <span>{{ student.name }}</span>
           </div>
           <div class="chat__users__student__call">
-            <button type="button" name="call" @click="emitCancel(student.id)" v-show="busy">Cancel</button>
+            <button type="button" name="call" @click="emitCancel(student.id)" v-show="(busy && student.busy) && (student.id == called)">Cancel</button>
           </div>
         </div>
       </div>
@@ -46,7 +46,8 @@ export default {
       answered: false,
       busy: false,
       pc: null,
-      stream: null
+      stream: null,
+      called: ''
     }
   },
   methods: {
@@ -78,7 +79,7 @@ export default {
       this.$refs['you'].srcObject = null
       this.busy = false
       this.received = false
-      this.called = false
+      this.called = ''
     },
     async makeOffer (id) {
       try {
@@ -143,6 +144,7 @@ export default {
     socket.on('call_made', id => {
       if (confirm('Answer call?')) {
         this.setPeerConnection()
+        this.called = id
         socket.emit('answer_call', id)
       }
       else socket.emit('reject_call', id)
