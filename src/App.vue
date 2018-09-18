@@ -29,8 +29,8 @@
 <script>
 import io from 'socket.io-client'
 
-// const socket = io.connect('http://localhost:8080')
-const socket = io.connect('https://online-class-server.herokuapp.com/')
+const socket = io.connect('http://localhost:8080')
+// const socket = io.connect('https://online-class-server.herokuapp.com/')
 
 const PeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection
 
@@ -47,7 +47,8 @@ export default {
       busy: false,
       pc: null,
       stream: null,
-      called: ''
+      called: '',
+      cancelled: false
     }
   },
   methods: {
@@ -143,11 +144,21 @@ export default {
     })
     socket.on('call_made', id => {
       if (confirm('Answer call?')) {
-        this.setPeerConnection()
-        this.called = id
-        socket.emit('answer_call', id)
+        console.log('Canceled? ', this.cancelled)
+        if (!this.cancelled) {
+          this.setPeerConnection()
+          this.called = id
+          socket.emit('answer_call', id)
+        } else {
+          this.cancelled = false
+        }
       }
       else socket.emit('reject_call', id)
+    })
+    socket.on('call_cancelled', () => {
+      this.cancelled = true
+      console.log('Cancel: ', this.cancelled)
+      alert('Call Cancelled!')
     })
     socket.on('end_call', () => {
       this.cancel()
