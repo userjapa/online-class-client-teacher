@@ -29,8 +29,8 @@
 <script>
 import io from 'socket.io-client'
 
-const socket = io.connect('http://localhost:8080')
-// const socket = io.connect('https://online-class-server.herokuapp.com/')
+// const socket = io.connect('http://localhost:8000')
+const socket = io.connect('https://online-class-server.herokuapp.com/')
 
 const PeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection
 
@@ -54,6 +54,7 @@ export default {
   methods: {
     async answer (id) {
       try {
+        console.log('Answering')
         this.busy = true
         const media = await navigator.mediaDevices.getUserMedia({
           video: true,
@@ -69,6 +70,7 @@ export default {
       }
     },
     emitCancel (id) {
+      console.log('Canceling')
       socket.emit('hangup', id)
       this.cancel()
     },
@@ -84,6 +86,7 @@ export default {
     },
     async makeOffer (id) {
       try {
+        console.log('Making Offer')
         if (!this.answered) {
           const offer = await this.pc.createOffer()
           this.offer = offer
@@ -117,6 +120,7 @@ export default {
     })
     socket.on('offer_made', async data => {
       try {
+        console.log('Offer Made')
         await this.pc.setRemoteDescription(new SessionDescription(data.offer))
         const answer = await this.pc.createAnswer()
         await this.pc.setLocalDescription(new SessionDescription(answer))
@@ -132,6 +136,7 @@ export default {
     })
     socket.on('answer_made', async data => {
       try {
+        console.log('Answer Made')
         await this.pc.setRemoteDescription(new SessionDescription(data.answer))
         if (!this.received) {
           this.makeOffer(data.socket)
@@ -143,6 +148,7 @@ export default {
       }
     })
     socket.on('call_made', id => {
+      console.log('Call Made')
       if (confirm('Answer call?')) {
         console.log('Canceled? ', this.cancelled)
         if (!this.cancelled) {
@@ -156,11 +162,13 @@ export default {
       else socket.emit('reject_call', id)
     })
     socket.on('call_cancelled', () => {
+      console.log('Call Canceled')
       this.cancelled = true
       console.log('Cancel: ', this.cancelled)
       alert('Call Cancelled!')
     })
     socket.on('end_call', () => {
+      console.log('Call ended')
       this.cancel()
     })
   }
